@@ -9,30 +9,77 @@
 
 #include <climits>
 
-
 namespace picoosc {
 
-// From https://stackoverflow.com/questions/105252/how-do-i-convert-between-big-endian-and-little-endian-values-in-c
-template <typename T>
-T swap_endian(T u)
-{
-    static_assert (CHAR_BIT == 8, "CHAR_BIT != 8");
+// From
+// https://stackoverflow.com/questions/105252/how-do-i-convert-between-big-endian-and-little-endian-values-in-c
+template <typename T> T swap_endian(T u) {
+  static_assert(CHAR_BIT == 8, "CHAR_BIT != 8");
 
-    union
-    {
-        T u;
-        unsigned char u8[sizeof(T)];
-    } source, dest;
+  union {
+    T u;
+    unsigned char u8[sizeof(T)];
+  } source, dest;
 
-    source.u = u;
+  source.u = u;
 
-    for (size_t k = 0; k < sizeof(T); k++)
-        dest.u8[k] = source.u8[sizeof(T) - k - 1];
+  for (size_t k = 0; k < sizeof(T); k++)
+    dest.u8[k] = source.u8[sizeof(T) - k - 1];
 
-    return dest.u;
+  return dest.u;
 }
 
 using namespace std;
+
+// A class representing a UDP client, mainly used for sending packets
+class OSCClient {
+
+  // Constructor that takes an address as a string and a port number
+  OSCClient(const char *address, uint16_t port) {
+    // Convert the address string to an ip_addr_t
+    ipaddr_aton(address, &addr);
+
+    // Set the port
+    this->port = port;
+
+    // Create a new OSC pcb
+    pcb = udp_new();
+
+    // Bind the pcb to the port
+    udp_bind(pcb, &addr, port);
+  }
+
+  // Destructor
+  ~OSCClient() {
+    // Close the pcb
+    udp_remove(pcb);
+  }
+
+  // Send packet
+  auto send(const char *buffer, uint16_t size) {
+    // Create a pbuf
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, size, PBUF_RAM);
+
+    // Copy the buffer to the pbuf
+    std::memcpy(p->payload, buffer, size);
+
+    // Attempt to send the packet
+    const auto error = udp_sendto(pcb, p, &addr, port);
+
+    if (error != ERR_OK) {
+      printf("Failed to send UDP packet! error=%d\n", error);
+      return 1;
+    } else {
+      printf("Sent packet \n");
+      return 0;
+    };
+  }
+
+private:
+  udp_pcb *pcb;
+  ip_addr_t addr;
+  uint16_t port;
+};
 
 // This class represents a valid OSC message that can be sent over the via UDP
 // as a UDP packet. It allows creating a buffer and adding data to it, and then
@@ -70,13 +117,11 @@ public:
   static constexpr auto MAX_TIMETAG_SIZE = 8;
 
   // Constructor
-  OSCMessage() : mBuffer{0}, mBufferSize{0} {
-	clear();
-  }
+  OSCMessage() : mBuffer{0}, mBufferSize{0} { clear(); }
 
   // Destructor
   ~OSCMessage() {
-	// FIXME: CLEAR BUFFERS
+    // FIXME: CLEAR BUFFERS
   }
 
   // Add an OSC address to the message
@@ -110,11 +155,11 @@ public:
   void addFloat(float value) {
     // Check if there is enough space in the buffer
     if (mBufferSize + 4 > MAX_MESSAGE_SIZE) {
-	  printf("Not enough space in buffer\n");
+      printf("Not enough space in buffer\n");
       return;
     }
 
-	// Add comma before type tag
+    // Add comma before type tag
     mBuffer[mBufferSize] = ',';
     mBufferSize += 1;
 
@@ -122,8 +167,8 @@ public:
     mBuffer[mBufferSize] = 'f';
     mBufferSize += 1;
 
-	// Swap the bytes
-	value = swap_endian<float>(value);
+    // Swap the bytes
+    value = swap_endian<float>(value);
 
     padBuffer();
 
@@ -142,7 +187,7 @@ public:
       return;
     }
 
-	// Add comma before type tag
+    // Add comma before type tag
     mBuffer[mBufferSize] = ',';
     mBufferSize += 1;
 
@@ -150,8 +195,8 @@ public:
     mBuffer[mBufferSize] = 'i';
     mBufferSize += 1;
 
-	// The Pico is Little Endian, so we need to reverse the bytes
-	value = swap_endian<int32_t>(value);
+    // The Pico is Little Endian, so we need to reverse the bytes
+    value = swap_endian<int32_t>(value);
 
     padBuffer();
 
@@ -172,7 +217,7 @@ public:
       return;
     }
 
-	// Add a comma before the string
+    // Add a comma before the string
     mBuffer[mBufferSize] = ',';
     mBufferSize += 1;
 
@@ -182,16 +227,15 @@ public:
 
     padBuffer();
 
-	// Make tmp string to avoid modifying the original
-	char tmp[std::strlen(value) + 1];
+    // Make tmp string to avoid modifying the original
+    char tmp[std::strlen(value) + 1];
 
-	// Swap endianness of all the bytes in the string
-	for (std::size_t i = 0; i < std::strlen(value); i++) {
+    // Swap endianness of all the bytes in the string
+    for (std::size_t i = 0; i < std::strlen(value); i++) {
 
-	  // Swap the bytes
-	  tmp[i] = swap_endian<char>(value[i]);
-	}
-
+      // Swap the bytes
+      tmp[i] = swap_endian<char>(value[i]);
+    }
 
     // Add the string
     std::memcpy(mBuffer + mBufferSize, tmp, std::strlen(tmp));
@@ -250,7 +294,7 @@ public:
 
   // Send the message over the network
   void send(struct udp_pcb *pcb, const ip_addr_t *ip, uint16_t port) {
-	printf("Trying to send osc packet\n");
+    printf("Trying to send osc packet\n");
 
     // Create a pbuf
     struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, mBufferSize, PBUF_RAM);
@@ -267,7 +311,7 @@ public:
       printf("Sent packet \n");
     };
 
-	print();
+    print();
 
     // Free the pbuf
     pbuf_free(p);
