@@ -63,6 +63,10 @@ using namespace std;
 class OSCClient
 {
 public:
+  OSCClient(const OSCClient&) = default;
+  OSCClient(OSCClient&&) = delete;
+  OSCClient& operator=(const OSCClient&) = default;
+  OSCClient& operator=(OSCClient&&) = delete;
   // Constructor that takes an address as a string and a port number
   OSCClient(const char* address, uint16_t port)
   {
