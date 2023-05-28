@@ -32,7 +32,7 @@ static constexpr auto MAX_MESSAGES = 255;
 // The maximum size of an OSC bundle's timestamp is 8 bytes.
 static constexpr auto MAX_TIMESTAMP_SIZE = 8;
 
-// The maximum size of an OSC bundle's timestamp is 8 bytes.
+// The maximum size of an OSC bundle's timetag is 8 bytes.
 static constexpr auto MAX_TIMETAG_SIZE = 8;
 
 // From
