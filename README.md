@@ -21,6 +21,27 @@ It currently supports:
 - ❌ An OSC server interface
 - ❌ Bundles
 
+## Usage example
+
+### Sending an integer
+
+```cpp
+// Setup UDP target
+const auto target = "192.168.0.105";
+const auto port = 3333;
+
+picoosc::OSCClient client(target, port);
+
+// Make an integer message
+picoosc::OSCMessage msg;
+
+msg.addAddress("/picoint");
+msg.add<int32_t>(8); 
+
+// Send the message
+msg.send(client);
+```
+
 ## Adding this library to your project
 
 ### Using CPM
