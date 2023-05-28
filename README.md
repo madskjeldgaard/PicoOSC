@@ -1,8 +1,8 @@
 # PicoOSC
 
-A simple library for OSC communication using the [lwip](https://github.com/lwip-tcpip/lwip) library.
+A simple library for OSC communication using the [lwip](https://github.com/lwip-tcpip/lwip) library that comes with the Raspberry Pi Pico C++ SDK.
 
-It was written for the Raspberry Pi Pico to be used with the Raspberry Pi Pico C++ SDK, but it should be able to work on other platforms that use lwip with a few modifications.
+This library was written for the Raspberry Pi Pico, but it should be able to work on other platforms that use lwip with a few modifications.
 
 ## Support
 
