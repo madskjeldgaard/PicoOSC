@@ -10,6 +10,32 @@
 
 namespace picoosc
 {
+// The maximum size of an OSC message is 1024 bytes.
+static constexpr auto MAX_MESSAGE_SIZE = 1024;
+
+// The maximum size of an OSC address is 255 bytes.
+static constexpr auto MAX_ADDRESS_SIZE = 255;
+
+// The maximum size of an OSC type tag string is 255 bytes.
+static constexpr auto MAX_TYPE_TAG_SIZE = 255;
+
+// The maximum number of arguments in an OSC message is 64.
+static constexpr auto MAX_ARGUMENTS = 64;
+
+// The maximum size of an OSC argument is 1024 bytes.
+static constexpr auto MAX_ARGUMENT_SIZE = 1024;
+
+// The maximum size of an OSC bundle is 1024 bytes.
+static constexpr auto MAX_BUNDLE_SIZE = 1024;
+
+// The maximum number of messages in an OSC bundle is 255.
+static constexpr auto MAX_MESSAGES = 255;
+
+// The maximum size of an OSC bundle's timestamp is 8 bytes.
+static constexpr auto MAX_TIMESTAMP_SIZE = 8;
+
+// The maximum size of an OSC bundle's timestamp is 8 bytes.
+static constexpr auto MAX_TIMETAG_SIZE = 8;
 
 // From
 // https://stackoverflow.com/questions/105252/how-do-i-convert-between-big-endian-and-little-endian-values-in-c
@@ -106,33 +132,6 @@ private:
 class OSCMessage
 {
 public:
-  // The maximum size of an OSC message is 1024 bytes.
-  static constexpr auto MAX_MESSAGE_SIZE = 1024;
-
-  // The maximum size of an OSC address is 255 bytes.
-  static constexpr auto MAX_ADDRESS_SIZE = 255;
-
-  // The maximum size of an OSC type tag string is 255 bytes.
-  static constexpr auto MAX_TYPE_TAG_SIZE = 255;
-
-  // The maximum number of arguments in an OSC message is 64.
-  static constexpr auto MAX_ARGUMENTS = 64;
-
-  // The maximum size of an OSC argument is 1024 bytes.
-  static constexpr auto MAX_ARGUMENT_SIZE = 1024;
-
-  // The maximum size of an OSC bundle is 1024 bytes.
-  static constexpr auto MAX_BUNDLE_SIZE = 1024;
-
-  // The maximum number of messages in an OSC bundle is 255.
-  static constexpr auto MAX_MESSAGES = 255;
-
-  // The maximum size of an OSC bundle's timestamp is 8 bytes.
-  static constexpr auto MAX_TIMESTAMP_SIZE = 8;
-
-  // The maximum size of an OSC bundle's timestamp is 8 bytes.
-  static constexpr auto MAX_TIMETAG_SIZE = 8;
-
   // Constructor
   OSCMessage()
       : mBuffer {0}
@@ -287,8 +286,7 @@ public:
     std::cout << std::endl;
   }
 
-	// Decode a udp packet buffer
-
+  // Decode a udp packet buffer
 
 private:
   // Buffer
