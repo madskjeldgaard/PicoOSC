@@ -121,8 +121,8 @@ public:
   }
 
 private:
-  udp_pcb* mPcb;
-  ip_addr_t mAddr;
+  udp_pcb* mPcb{};
+  ip_addr_t mAddr{};
   uint16_t mPort;
 };
 
