@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <variant>
 
 #include "lwip/pbuf.h"
 #include "lwip/udp.h"
@@ -121,9 +122,57 @@ private:
   uint16_t mPort;
 };
 
-// This class represents a valid OSC message that can be sent over the via UDP
-// as a UDP packet. It allows creating a buffer and adding data to it, and then
-// sending it over the network.
+// A simple OSC server that can receive OSC messages using lwip
+class OSCServer
+{
+public:
+  // Constructor that takes a port number
+  OSCServer(uint16_t port)
+  {
+    // Create a new OSC pcb
+    mPcb = udp_new();
+
+    // Bind the pcb to the port
+    const auto result = udp_bind(mPcb, IP_ADDR_ANY, port);
+
+    if (result != ERR_OK) {
+      printf("Failed to bind UDP pcb! error=%d\n", result);
+    } else {
+      printf("Bound UDP pcb to port %d\n", port);
+    }
+  }
+
+  // Destructor
+  ~OSCServer()
+  {
+    // Close the pcb
+    udp_remove(mPcb);
+  }
+
+  // Receive packet
+  auto receive(char* buffer, uint16_t size)
+  {
+    // Attempt to receive the packet
+    udp_recv(
+        mPcb,
+        [](void* arg, udp_pcb* pcb, pbuf* p, const ip_addr_t* addr, u16_t port)
+        {
+          // Copy the buffer to the pbuf
+          std::memcpy(arg, p->payload, p->len);
+
+          // Free packet buffer
+          pbuf_free(p);
+        },
+        buffer);
+  }
+
+private:
+  udp_pcb* mPcb;
+};
+
+// This class represents a valid OSC message that can be sent over the via
+// UDP as a UDP packet. It allows creating a buffer and adding data to it,
+// and then sending it over the network.
 //
 // There are examples from the spec here:
 // https://opensoundcontrol.stanford.edu/spec-1_0-examples.html#typetagstrings
@@ -174,8 +223,8 @@ public:
     }
   }
 
-  // Use templates and constexpr if to add the correct type tag to the buffer
-  // and then add the value to the buffer
+  // Use templates and constexpr if to add the correct type tag to the
+  // buffer and then add the value to the buffer
   template<typename T>
   void add(T value)
   {
@@ -206,11 +255,11 @@ public:
 
     mBufferSize += 1;
 
-    // For simple types like floats and integers we can just copy the value to
-    // the buffer
+    // For simple types like floats and integers we can just copy the value
+    // to the buffer
     if constexpr (isFloat || isInt) {
-      // The Raspberry Pi Pico is Little Endian so we need to swap the bytes in
-      // the vlaue
+      // The Raspberry Pi Pico is Little Endian so we need to swap the bytes
+      // in the vlaue
       value = swap_endian<T>(value);
       padBuffer();
 
@@ -284,7 +333,155 @@ public:
     std::cout << std::endl;
   }
 
-  // Decode a udp packet buffer
+  // Decode a udp packet buffer as an OSC message
+  void parse(const char* buffer, std::size_t size)
+  {
+    // Clear the buffer
+    clear();
+
+    // Copy the buffer
+    std::memcpy(mBuffer, buffer, size);
+    mBufferSize = size;
+
+    // Iterate over all bytes in buffer and decode the address, type tag and
+    // arguments from the bytes
+
+    // State machine
+    enum State
+    {
+      ADDRESS,
+      TYPE_TAG,
+      ARGUMENTS
+    };
+
+    State state = ADDRESS;
+
+    // Index of current byte
+    int i = 0;
+
+    // Index of start of address
+    int addressStart = 0;
+
+    // Index of end of address
+    int addressEnd = 0;
+
+    // Index of start of type tag
+    int typeTagStart = 0;
+
+    // Index of end of type tag
+    int typeTagEnd = 0;
+
+    // Iterate over all bytes in buffer
+    while (i < size) {
+      // Get the current byte
+      uint8_t byte = buffer[i];
+
+      // Decode the byte based on the current state
+      switch (state) {
+        case ADDRESS:
+          // Check if we got to the end of the address
+          if (byte == '\0') {
+            // Set the end of the address
+            addressEnd = i;
+
+            // Set the start of the type tag
+            typeTagStart = i + 1;
+
+            // increment
+            i += 4;
+
+            // Set the state to TYPE_TAG
+            state = TYPE_TAG;
+          } else {
+            // Set the start of the address
+            addressStart = i;
+
+            // increment
+            i += 4;
+          }
+          break;
+        case TYPE_TAG:
+          // Check if we got to the end of the type tag
+          if (byte == '\0') {
+            // Set the end of the type tag
+            typeTagEnd = i;
+
+            // Set the state to ARGUMENTS
+            state = ARGUMENTS;
+
+            // increment
+            i += 4;
+          } else {
+            // Set the start of the type tag
+            typeTagStart = i;
+
+            // increment
+            i += 4;
+          }
+          break;
+        case ARGUMENTS:
+          // Check the type tag
+          if (buffer[i] == 'f') {
+            // Get the float value
+            float value = 0.f;
+            std::memcpy(&value, buffer + i + 1, 4);
+
+            // Swap the endianness of the value
+            value = swap_endian<float>(value);
+
+            // Add the value to the message
+            add<float>(value);
+
+            // Increment i by 4
+            i += 4;
+          } else if (buffer[i] == 'i') {
+            // Get the int value
+            int32_t value = 0;
+            std::memcpy(&value, buffer + i + 1, 4);
+
+            // Swap the endianness of the value
+            value = swap_endian<int32_t>(value);
+
+            // Add the value to the message
+            add<int32_t>(value);
+
+            // Increment i by 4
+            i += 4;
+          }
+			  // else if (buffer[i] == 's') {
+			  // // Parse const char * string
+			  // const char * value = buffer + i + 1;
+					//
+			  // // Add the value to the message
+			  // add<const char *>(value);
+					//
+
+                      // }
+      };
+    }
+
+    // Print address
+    // printf("Address: ");
+    // for (int j = addressStart; j < addressEnd; j++) {
+    //   printf("%c", buffer[j]);
+    // };
+    // printf("\n");
+    //
+    // // Print type
+    //
+    // printf("\nType tag: ");
+    // for (int j = typeTagStart; j < typeTagEnd; j++) {
+    //   printf("%c", buffer[j]);
+    // };
+    // printf("\n");
+    //
+    // // Print arguments
+    // printf("\nArguments: ");
+    // for (int j = typeTagEnd + 1; j < size; j++) {
+    //   printf("%c", buffer[j]);
+    // };
+    // printf("\n");
+  }
 
 private:
   // Buffer
