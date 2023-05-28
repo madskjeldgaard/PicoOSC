@@ -37,7 +37,7 @@ If you have a project called `SimplePicoMidiController`, you can link this libra
 
 ```cmake
 # Add Debounce
-set(PICO_DEBOUNCE_PATH "include/PicoOSC")
-add_subdirectory(${PICO_DEBOUNCE_PATH})
+set(PICO_OSC_PATH "include/PicoOSC")
+add_subdirectory(${PICO_OSC_PATH})
 target_link_libraries(SimplePicoMidiController PicoOSC)
 ```
