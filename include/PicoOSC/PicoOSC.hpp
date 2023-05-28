@@ -65,8 +65,8 @@ class OSCClient
 public:
   OSCClient(const OSCClient&) = default;
   OSCClient(OSCClient&&) = delete;
-  OSCClient& operator=(const OSCClient&) = default;
-  OSCClient& operator=(OSCClient&&) = delete;
+  auto operator=(const OSCClient&) -> OSCClient& = default;
+  auto operator=(OSCClient&&) -> OSCClient& = delete;
   // Constructor that takes an address as a string and a port number
   OSCClient(const char* address, uint16_t port)
   {
@@ -254,13 +254,13 @@ public:
   }
 
   // Get the data
-  const char* data() const
+  auto data() const -> const char*
   {
     return mBuffer;
   }
 
   // Get the size
-  std::size_t size() const
+  auto size() const -> std::size_t
   {
     return mBufferSize;
   }
