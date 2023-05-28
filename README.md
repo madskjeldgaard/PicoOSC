@@ -6,7 +6,9 @@ It uses the [lwip](https://github.com/lwip-tcpip/lwip) library that is included 
 
 ## Support
 
-The library currently supports
+This library is still a work in progress. Feel free to contribute to make it fully compatible with the whole [osc specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) !
+
+It currently supports:
 
 - ✅ An OSC client interface:
     - ❌ multiple types in one message
