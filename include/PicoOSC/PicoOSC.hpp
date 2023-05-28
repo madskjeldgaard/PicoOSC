@@ -71,13 +71,13 @@ public:
   OSCClient(const char* address, uint16_t port)
   {
     // Convert the address string to an ip_addr_t
-    ipaddr_aton(address, &mAddr);
+    ipaddr_aton(address, &m_addr);
 
     // Set the port
-    this->mPort = port;
+    this->m_port = port;
 
     // Create a new OSC pcb
-    mPcb = udp_new();
+    m_pcb = udp_new();
 
     // Bind the pcb to the port
     // const auto result = udp_bind(mPcb, &mAddr, port);
@@ -93,7 +93,7 @@ public:
   ~OSCClient()
   {
     // Close the pcb
-    udp_remove(mPcb);
+    udp_remove(m_pcb);
   }
 
   // Send packet
@@ -106,7 +106,7 @@ public:
     std::memcpy(p->payload, buffer, size);
 
     // Attempt to send the packet
-    const auto error = udp_sendto(mPcb, p, &mAddr, mPort);
+    const auto error = udp_sendto(m_pcb, p, &m_addr, m_port);
 
     // Free packet buffer
     pbuf_free(p);
@@ -121,9 +121,9 @@ public:
   }
 
 private:
-  udp_pcb* mPcb{};
-  ip_addr_t mAddr{};
-  uint16_t mPort;
+  udp_pcb* m_pcb{};
+  ip_addr_t m_addr{};
+  uint16_t m_port;
 };
 
 // This class represents a valid OSC message that can be sent over the via UDP
@@ -137,8 +137,8 @@ class OSCMessage
 public:
   // Constructor
   OSCMessage()
-      : mBuffer {0}
-      , mBufferSize {0}
+      : m_buffer {0}
+      , m_bufferSize {0}
   {
     clear();
   }
@@ -159,12 +159,12 @@ public:
     }
 
     // Add the address to the buffer
-    std::memcpy(mBuffer + mBufferSize, address, std::strlen(address));
-    mBufferSize += std::strlen(address);
+    std::memcpy(m_buffer + m_bufferSize, address, std::strlen(address));
+    m_bufferSize += std::strlen(address);
 
     // Add a null terminator
-    mBuffer[mBufferSize] = '\0';
-    mBufferSize += 1;
+    m_buffer[m_bufferSize] = '\0';
+    m_bufferSize += 1;
 
     // Pad the buffer to the next 4-byte boundary
     padBuffer();
@@ -173,9 +173,9 @@ public:
   void padBuffer()
   {
     // Pad the buffer to the next 4-byte boundary
-    while (mBufferSize % 4 != 0) {
-      mBuffer[mBufferSize] = '\0';
-      mBufferSize += 1;
+    while (m_bufferSize % 4 != 0) {
+      m_buffer[m_bufferSize] = '\0';
+      m_bufferSize += 1;
     }
   }
 
@@ -185,7 +185,7 @@ public:
   void add(T value)
   {
     // Check if there is enough space in the buffer
-    if (mBufferSize + 4 > MAX_MESSAGE_SIZE) {
+    if (m_bufferSize + 4 > MAX_MESSAGE_SIZE) {
       printf("Not enough space in buffer\n");
       return;
     }
@@ -196,20 +196,20 @@ public:
 
     // Add type tag
     // Add comma before type tag
-    mBuffer[mBufferSize] = ',';
-    mBufferSize += 1;
+    m_buffer[m_bufferSize] = ',';
+    m_bufferSize += 1;
 
     if constexpr (isFloat) {
-      mBuffer[mBufferSize] = 'f';
+      m_buffer[m_bufferSize] = 'f';
     } else if constexpr (isInt) {
-      mBuffer[mBufferSize] = 'i';
+      m_buffer[m_bufferSize] = 'i';
     } else if constexpr (isString) {
-      mBuffer[mBufferSize] = 's';
+      m_buffer[m_bufferSize] = 's';
     } else {
       printf("Unsupported type\n");
     }
 
-    mBufferSize += 1;
+    m_bufferSize += 1;
 
     // For simple types like floats and integers we can just copy the value to
     // the buffer
@@ -220,30 +220,30 @@ public:
       padBuffer();
 
       // Copy to the buffer
-      std::memcpy(mBuffer + mBufferSize, &value, 4);
-      mBufferSize += 4;
+      std::memcpy(m_buffer + m_bufferSize, &value, 4);
+      m_bufferSize += 4;
 
     } else if constexpr (isString) {
       // For strings it's a bit more complex
 
       // Add a null terminator
-      mBuffer[mBufferSize] = '\0';
-      mBufferSize += 1;
+      m_buffer[m_bufferSize] = '\0';
+      m_bufferSize += 1;
 
       // Swap the endianness of all chars
       for (int i = 0; i < std::strlen(value); i++) {
-        mBuffer[mBufferSize + i] = swap_endian<char>(value[i]);
+        m_buffer[m_bufferSize + i] = swap_endian<char>(value[i]);
       }
 
       // Add a null terminator
-      mBuffer[mBufferSize] = '\0';
-      mBufferSize += 1;
+      m_buffer[m_bufferSize] = '\0';
+      m_bufferSize += 1;
 
       padBuffer();
 
       // Copy the string to the buffer
-      std::memcpy(mBuffer + mBufferSize, value, std::strlen(value));
-      mBufferSize += std::strlen(value);
+      std::memcpy(m_buffer + m_bufferSize, value, std::strlen(value));
+      m_bufferSize += std::strlen(value);
 
     } else {
       printf("Unsupported type\n");
@@ -256,26 +256,26 @@ public:
   // Get the data
   auto data() const -> const char*
   {
-    return mBuffer;
+    return m_buffer;
   }
 
   // Get the size
   auto size() const -> std::size_t
   {
-    return mBufferSize;
+    return m_bufferSize;
   }
 
   // Clear the buffer
   void clear()
   {
-    mBufferSize = 0;
-    std::memset(mBuffer, 0, MAX_MESSAGE_SIZE);
+    m_bufferSize = 0;
+    std::memset(m_buffer, 0, MAX_MESSAGE_SIZE);
   }
 
   // Send the message over the network using a OSC Client
   auto send(OSCClient& client) -> bool
   {
-    const auto error = client.send(mBuffer, mBufferSize);
+    const auto error = client.send(m_buffer, m_bufferSize);
 
     return error == ERR_OK;
   }
@@ -283,8 +283,8 @@ public:
   // Print the buffer
   void print()
   {
-    for (std::size_t i = 0; i < mBufferSize; i++) {
-      std::cout << mBuffer[i];
+    for (std::size_t i = 0; i < m_bufferSize; i++) {
+      std::cout << m_buffer[i];
     }
     std::cout << std::endl;
   }
@@ -293,10 +293,10 @@ public:
 
 private:
   // Buffer
-  std::size_t mBufferSize;
+  std::size_t m_bufferSize;
 
   // A buffer based on char as the basic type
-  char mBuffer[MAX_MESSAGE_SIZE];
+  char m_buffer[MAX_MESSAGE_SIZE];
 };
 
 }  // namespace picoosc
