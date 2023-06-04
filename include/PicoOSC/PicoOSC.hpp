@@ -121,55 +121,6 @@ private:
   ip_addr_t mAddr;
   uint16_t mPort;
 };
-
-// A simple OSC server that can receive OSC messages using lwip
-class OSCServer
-{
-public:
-  // Constructor that takes a port number
-  OSCServer(uint16_t port)
-  {
-    // Create a new OSC pcb
-    mPcb = udp_new();
-
-    // Bind the pcb to the port
-    const auto result = udp_bind(mPcb, IP_ADDR_ANY, port);
-
-    if (result != ERR_OK) {
-      printf("Failed to bind UDP pcb! error=%d\n", result);
-    } else {
-      printf("Bound UDP pcb to port %d\n", port);
-    }
-  }
-
-  // Destructor
-  ~OSCServer()
-  {
-    // Close the pcb
-    udp_remove(mPcb);
-  }
-
-  // Receive packet
-  auto receive(char* buffer, uint16_t size)
-  {
-    // Attempt to receive the packet
-    udp_recv(
-        mPcb,
-        [](void* arg, udp_pcb* pcb, pbuf* p, const ip_addr_t* addr, u16_t port)
-        {
-          // Copy the buffer to the pbuf
-          std::memcpy(arg, p->payload, p->len);
-
-          // Free packet buffer
-          pbuf_free(p);
-        },
-        buffer);
-  }
-
-private:
-  udp_pcb* mPcb;
-};
-
 // This class represents a valid OSC message that can be sent over the via
 // UDP as a UDP packet. It allows creating a buffer and adding data to it,
 // and then sending it over the network.
@@ -339,13 +290,6 @@ public:
     // Clear the buffer
     clear();
 
-    // Copy the buffer
-    std::memcpy(mBuffer, buffer, size);
-    mBufferSize = size;
-
-    // Iterate over all bytes in buffer and decode the address, type tag and
-    // arguments from the bytes
-
     // State machine
     enum State
     {
@@ -371,117 +315,190 @@ public:
     // Index of end of type tag
     int typeTagEnd = 0;
 
-    // Iterate over all bytes in buffer
+    // Iterate over all bytes in the input buffer and parse the message
+	// use the addAddress() method to add the address to this message's buffer
+	// use the add() method to add the arguments to this message's buffer
     while (i < size) {
-      // Get the current byte
-      uint8_t byte = buffer[i];
 
-      // Decode the byte based on the current state
-      switch (state) {
-        case ADDRESS:
-          // Check if we got to the end of the address
-          if (byte == '\0') {
-            // Set the end of the address
-            addressEnd = i;
 
-            // Set the start of the type tag
-            typeTagStart = i + 1;
+    }
+  }
 
-            // increment
-            i += 4;
+  // Find position of type tag in buffer
+  int findTypeTagPosition() const
+  {
+    // Get the position of the type tag
+    int typeTagPosition = 0;
+    for (int i = 0; i < mBufferSize; i++) {
+      if (mBuffer[i] == ',') {
+        typeTagPosition = i;
+      }
+    }
+    return typeTagPosition;
+  }
 
-            // Set the state to TYPE_TAG
-            state = TYPE_TAG;
-          } else {
-            // Set the start of the address
-            addressStart = i;
+  // Get type tag
+  const char* getTypeTag() const
+  {
+    // Get the position of the type tag
+    const auto typeTagPosition = findTypeTagPosition();
 
-            // increment
-            i += 4;
-          }
-          break;
-        case TYPE_TAG:
-          // Check if we got to the end of the type tag
-          if (byte == '\0') {
-            // Set the end of the type tag
-            typeTagEnd = i;
-
-            // Set the state to ARGUMENTS
-            state = ARGUMENTS;
-
-            // increment
-            i += 4;
-          } else {
-            // Set the start of the type tag
-            typeTagStart = i;
-
-            // increment
-            i += 4;
-          }
-          break;
-        case ARGUMENTS:
-          // Check the type tag
-          if (buffer[i] == 'f') {
-            // Get the float value
-            float value = 0.f;
-            std::memcpy(&value, buffer + i + 1, 4);
-
-            // Swap the endianness of the value
-            value = swap_endian<float>(value);
-
-            // Add the value to the message
-            add<float>(value);
-
-            // Increment i by 4
-            i += 4;
-          } else if (buffer[i] == 'i') {
-            // Get the int value
-            int32_t value = 0;
-            std::memcpy(&value, buffer + i + 1, 4);
-
-            // Swap the endianness of the value
-            value = swap_endian<int32_t>(value);
-
-            // Add the value to the message
-            add<int32_t>(value);
-
-            // Increment i by 4
-            i += 4;
-          }
-			  // else if (buffer[i] == 's') {
-			  // // Parse const char * string
-			  // const char * value = buffer + i + 1;
-					//
-			  // // Add the value to the message
-			  // add<const char *>(value);
-					//
-
-                      // }
-      };
+    if (typeTagPosition == 0) {
+      return nullptr;
     }
 
-    // Print address
-    // printf("Address: ");
-    // for (int j = addressStart; j < addressEnd; j++) {
-    //   printf("%c", buffer[j]);
-    // };
-    // printf("\n");
-    //
-    // // Print type
-    //
-    // printf("\nType tag: ");
-    // for (int j = typeTagStart; j < typeTagEnd; j++) {
-    //   printf("%c", buffer[j]);
-    // };
-    // printf("\n");
-    //
-    // // Print arguments
-    // printf("\nArguments: ");
-    // for (int j = typeTagEnd + 1; j < size; j++) {
-    //   printf("%c", buffer[j]);
-    // };
-    // printf("\n");
+    // Get the type tag from the buffer
+    const char* typeTag = mBuffer + typeTagPosition + 1;
+
+    return typeTag;
   }
+
+  // Get position of arguments in buffer
+  int findArgumentsPosition() const
+  {
+    // Get the position of the type tag
+    const auto typeTagPosition = findTypeTagPosition();
+
+    const auto typeTagLength = std::strlen(getTypeTag());
+
+    // Get the position of the arguments
+    const auto argumentsPosition = typeTagPosition + typeTagLength + 1;
+
+    return argumentsPosition;
+  }
+
+  // Get arguments
+  const char* getArguments() const
+  {
+    // Get the position of the arguments
+    const auto argumentsPosition = findArgumentsPosition();
+
+    if (argumentsPosition == 0) {
+      return nullptr;
+    }
+
+    // Get the arguments from the buffer
+    const char* arguments = mBuffer + argumentsPosition;
+
+    return arguments;
+  }
+
+  // Get integer from buffer
+  int32_t getInt()
+  {
+    // Get the position of the arguments
+    const auto argumentsPosition = findArgumentsPosition();
+
+    // Get the int value from the first position
+    int32_t value = 0;
+    const auto numBytes = sizeof(int32_t);
+
+    std::memcpy(&value, mBuffer + argumentsPosition, numBytes);
+
+    // Swap the endianness of the value
+    // value = swap_endian<int32_t>(value);
+
+    return value;
+  }
+
+  /*
+  decodeData(uint8_t incomingByte){
+//get the first OSCData to re-set
+for (int i = 0; i < dataCount; i++){
+  OSCData * datum = getOSCData(i);
+  if (datum->error == INVALID_OSC){
+      //set the contents of datum with the data received
+      switch (datum->type){
+          case 'i':
+              if (incomingBufferSize == 4){
+                  //parse the buffer as an int
+                  union {
+                      int32_t i;
+                      uint8_t b[4];
+                  } u;
+                  memcpy(u.b, incomingBuffer, 4);
+                  int32_t dataVal = BigEndian(u.i);
+                  set(i, dataVal);
+                  clearIncomingBuffer();
+              }
+              break;
+          case 'f':
+              if (incomingBufferSize == 4){
+                  //parse the buffer as a float
+                  union {
+                      float f;
+                      uint8_t b[4];
+                  } u;
+                  memcpy(u.b, incomingBuffer, 4);
+                  float dataVal = BigEndian(u.f);
+                  set(i, dataVal);
+                  clearIncomingBuffer();
+              }
+              break;
+          case 'd':
+              if (incomingBufferSize == 8){
+                  //parse the buffer as a double
+                  union {
+                      double d;
+                      uint8_t b[8];
+                  } u;
+                  memcpy(u.b, incomingBuffer, 8);
+                  double dataVal = BigEndian(u.d);
+                  set(i, dataVal);
+                  clearIncomingBuffer();
+              }
+              break;
+          case 't':
+              if (incomingBufferSize == 8){
+                  //parse the buffer as a timetag
+                  union {
+                      osctime_t t;
+                      uint8_t b[8];
+                  } u;
+                  memcpy(u.b, incomingBuffer, 8);
+
+                  u.t.seconds = BigEndian(u.t.seconds);
+                  u.t.fractionofseconds = BigEndian(u.t.fractionofseconds);
+                  set(i, u.t);
+                  clearIncomingBuffer();
+              }
+              break;
+
+          case 's':
+              if (incomingByte == 0){
+                  char * str = (char *) incomingBuffer;
+                  set(i, str);
+                  clearIncomingBuffer();
+                  decodeState = DATA_PADDING;
+              }
+              break;
+          case 'b':
+              if (incomingBufferSize > 4){
+                  //compute the expected blob size
+                  union {
+                      uint32_t i;
+                      uint8_t b[4];
+                  } u;
+                  memcpy(u.b, incomingBuffer, 4);
+                  uint32_t blobLength = BigEndian(u.i);
+                  if (incomingBufferSize == (int)(blobLength + 4)){
+                      set(i, incomingBuffer + 4, blobLength);
+                      clearIncomingBuffer();
+                      decodeState = DATA_PADDING;
+                  }
+
+              }
+              break;
+      }
+      //break out of the for loop once we've selected the first invalid message
+      break;
+  }
+}
+}
+
+           */
+  // A decode function based on the above method from OSCMessage.h in CNMAT's
+  // OSC library
 
 private:
   // Buffer
@@ -551,13 +568,10 @@ public:
   // and a nullptr if no packet was received
   void setReceiveFunction()
   {
-
-
     // Attempt to receive the packet
     udp_recv(
         mPcb,
-        [](
-            void* arg, udp_pcb* pcb, pbuf* p, const ip_addr_t* addr, u16_t port)
+        [](void* arg, udp_pcb* pcb, pbuf* p, const ip_addr_t* addr, u16_t port)
         {
           // Get ip of incoming packet
           const auto ip = ipaddr_ntoa(addr);
@@ -586,16 +600,16 @@ public:
             if (typeTag != nullptr) {
               printf("Type tag: %s\n", typeTag);
 
-			  // print tag position
-			  const auto typeTagPosition = message.findTypeTagPosition();
-			  printf("Type tag position: %d\n", typeTagPosition);
+              // print tag position
+              const auto typeTagPosition = message.findTypeTagPosition();
+              printf("Type tag position: %d\n", typeTagPosition);
 
               // print arguments
               const auto arguments = message.getArguments();
 
-			  // print argument position
-			  const auto argumentsPosition = message.findArgumentsPosition();
-			  printf("Arguments position: %d\n", argumentsPosition);
+              // print argument position
+              const auto argumentsPosition = message.findArgumentsPosition();
+              printf("Arguments position: %d\n", argumentsPosition);
 
               if (arguments != nullptr) {
                 // Print arguments
