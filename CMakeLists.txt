@@ -13,4 +13,9 @@ project(
 target_include_directories(${LIBNAME} INTERFACE include)
 
 # Add target sources
-target_sources(${LIBNAME} INTERFACE include/PicoOSC/PicoOSC.hpp)
+target_sources(${LIBNAME} INTERFACE
+	include/PicoOSC/OSCClient.hpp
+	include/PicoOSC/OSCMessage.hpp
+	include/PicoOSC/OSCMessageParser.hpp
+	include/PicoOSC/OSCServer.hpp
+	)
